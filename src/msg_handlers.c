@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include "msg_callback.h"
 
 
@@ -32,8 +32,14 @@ static void __read_n_bytes(FILE *fp, char *buffer, int len)
 static void completion_readSourcefile(completion_Session *session, FILE *fp)
 {
     int source_length;
+    FILE* input_file;
     fscanf(fp, "source_length:%d", &source_length);
     __skip_the_rest(fp);
+
+    input_file = fopen(session->input_tempfile_filename, "r");
+    fseek(input_file, 0L, SEEK_END);
+    source_length = ftell(input_file);
+    fseek(input_file, 0L, SEEK_SET);
 
     if (source_length >= session->buffer_capacity) /* we're running out of space */
     {
@@ -45,7 +51,9 @@ static void completion_readSourcefile(completion_Session *session, FILE *fp)
 
     /* read source code from fp to buffer */
     session->src_length = source_length;
-    __read_n_bytes(fp, session->src_buffer, source_length);
+    fread(session->src_buffer, sizeof(char), source_length, input_file);
+    fclose(input_file);
+    remove(session->input_tempfile_filename);
 }
 
 
@@ -64,6 +72,7 @@ void completion_doCompletion(completion_Session *session, FILE *fp)
 
     /* get where to complete at */
     int row, column;
+    FILE* temp_file;
     fscanf(fp, "row:%d",    &row);    __skip_the_rest(fp);
     fscanf(fp, "column:%d", &column); __skip_the_rest(fp);
 
@@ -77,7 +86,9 @@ void completion_doCompletion(completion_Session *session, FILE *fp)
 	    /* code completion completed successfully, so we sort and dump these
          * completion candidates back to client */
 	    clang_sortCodeCompletionResults(res->Results, res->NumResults);
-	    completion_printCodeCompletionResults(res, stdout);
+	    temp_file = fopen(session->output_tempfile_filename, "w");
+	    completion_printCodeCompletionResults(res, temp_file);
+	    fclose(temp_file);
         clang_disposeCodeCompleteResults(res);
     }
     

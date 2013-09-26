@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 {
     completion_Session session;
 
-    if (argc < 2) {
+    if (argc < 4) {
         printf("Source file name must be specified as the last commandline argument\n");
         exit(-1);
     }

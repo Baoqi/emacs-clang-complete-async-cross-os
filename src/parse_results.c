@@ -114,7 +114,7 @@ void completion_printCompletionLine(
         completion_printAllCompletionTerms(completion_string, fp);
     }
 
-    printf("\n");
+    fprintf(fp, "\n");
 }
 
 /* Print all completion results to fp */

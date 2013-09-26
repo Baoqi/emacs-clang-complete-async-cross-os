@@ -8,7 +8,7 @@
 static void __copy_cmdlineArgs(int argc, char *argv[], completion_Session *session)
 {
     int i_arg = 0;
-    session->num_args = argc - 2;  /* argv[0] and argv[argc - 2] should be discarded */
+    session->num_args = argc - 4;  /* argv[0] and argv[argc - 1], argv[argc - 2], argv[argc - 3] should be discarded */
     session->cmdline_args = (char**)calloc(sizeof(char*), session->num_args);
 
     /* copy argv[1..argc-1] to cmdline_args */
@@ -28,6 +28,8 @@ __initialize_completionSession(int argc, char *argv[], completion_Session *sessi
 {
     /* filename shall be the last parameter */
     session->src_filename = argv[argc - 1];
+    session->input_tempfile_filename = argv[argc - 3];
+    session->output_tempfile_filename = argv[argc - 2];
     session->src_length = 0;      /* we haven't read any source code yet. */
     session->buffer_capacity = INITIAL_SRC_BUFFER_SIZE;
     session->src_buffer = (char*)calloc(sizeof(char), session->buffer_capacity);
@@ -44,8 +46,8 @@ void startup_completionSession(int argc, char *argv[], completion_Session *sessi
     __initialize_completionSession(argc, argv, session);
 
     /* default parameters */
-    session->ParseOptions      = DEFAULT_PARSE_OPTIONS;
-    session->CompleteAtOptions = DEFAULT_COMPLETEAT_OPTIONS;
+    session->ParseOptions      = clang_defaultEditingTranslationUnitOptions();
+    session->CompleteAtOptions = clang_defaultCodeCompleteOptions();
 
     session->cx_index = clang_createIndex(0, 0);
     completion_parseTranslationUnit(session);

@@ -1,14 +1,16 @@
 #ifndef _COMPLETION_SESSION_H_
 #define _COMPLETION_SESSION_H_
 
-
+#include <stdio.h>
 #include <clang-c/Index.h>
-
+#define LINE_MAX 1000
 
 typedef struct __completion_Session_struct
 {
     /* <source file properties> */
     const char *src_filename;  /* filename of the source file */
+    const char *input_tempfile_filename;	/* filename of the input temp file*/
+    const char *output_tempfile_filename;	/* filename of the output temp file*/
     char *src_buffer;          /* buffer holding the source code */
     int   src_length;          /* length of the source code <including the trailing '\0'> */
     int   buffer_capacity;     /* size of source code buffer */
