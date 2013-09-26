@@ -189,12 +189,28 @@ set new cflags for ac-clang from shell command output"
             (t
              "c++"))))
 
+(defsubst ac-clang-get-temp-file-name ()
+  (let ((temp-folder-name  (file-truename "~/.emacs.d/temp")))
+    (unless (file-directory-p temp-folder-name)
+      (make-directory temp-folder-name))
+    (make-temp-name
+     (file-name-as-directory temp-folder-name))))
+
+
 (defsubst ac-clang-build-complete-args ()
-  (append '("-cc1" "-fsyntax-only")
-          (list "-x" (ac-clang-lang-option))
-          ac-clang-cflags
-          (when (stringp ac-clang-prefix-header)
-            (list "-include-pch" (expand-file-name ac-clang-prefix-header)))))
+  (progn
+    (unless ac-clang-input-temp-file-name
+      (setq ac-clang-input-temp-file-name (ac-clang-get-temp-file-name)))
+    
+    (unless ac-clang-output-temp-file-name
+      (setq ac-clang-output-temp-file-name (ac-clang-get-temp-file-name)))
+
+    (append '("-cc1" "-fsyntax-only")
+	    (list "-x" (ac-clang-lang-option))
+	    ac-clang-cflags
+	    (when (stringp ac-clang-prefix-header)
+	      (list "-include-pch" (expand-file-name ac-clang-prefix-header)))
+	    (list ac-clang-input-temp-file-name ac-clang-output-temp-file-name))))
 
 
 (defsubst ac-clang-clean-document (s)
@@ -400,10 +416,14 @@ set new cflags for ac-clang from shell command output"
 (defvar ac-clang-current-candidate nil)
 (defvar ac-clang-completion-process nil)
 (defvar ac-clang-saved-prefix "")
+(defvar ac-clang-input-temp-file-name nil)
+(defvar ac-clang-output-temp-file-name nil)
 
 (make-variable-buffer-local 'ac-clang-status)
 (make-variable-buffer-local 'ac-clang-current-candidate)
 (make-variable-buffer-local 'ac-clang-completion-process)
+(make-variable-buffer-local 'ac-clang-input-temp-file-name)
+(make-variable-buffer-local 'ac-clang-output-temp-file-name)
 
 ;;;
 ;;; Functions to speak with the clang-complete process
@@ -412,21 +432,20 @@ set new cflags for ac-clang from shell command output"
 (defun ac-clang-send-source-code (proc)
   (save-restriction
     (widen)
-    (process-send-string
-     proc (format "source_length:%d\n"
-                  (length (string-as-unibyte   ; fix non-ascii character problem
-                           (buffer-substring-no-properties (point-min) (point-max)))
-                          )))
-    (process-send-string proc (buffer-substring-no-properties (point-min) (point-max)))
+
+    (let ((coding-system-for-write 'utf-8))
+      (write-region (point-min) (point-max) ac-clang-input-temp-file-name nil 0))
+    
+    (process-send-string proc (format "source_length:%d\n" 0))
     (process-send-string proc "\n\n")))
 
 (defun ac-clang-send-reparse-request (proc)
   (if (eq (process-status proc) 'run)
       (save-restriction
-    (widen)
-    (process-send-string proc "SOURCEFILE\n")
-    (ac-clang-send-source-code proc)
-    (process-send-string proc "REPARSE\n\n"))))
+	(widen)
+	(process-send-string proc "SOURCEFILE\n")
+	(ac-clang-send-source-code proc)
+	(process-send-string proc "REPARSE\n\n"))))
 
 (defun ac-clang-send-completion-request (proc)
   (save-restriction
@@ -457,12 +476,12 @@ set new cflags for ac-clang from shell command output"
 (defun ac-clang-update-cmdlineargs ()
   (interactive)
   (if (listp ac-clang-cflags)
-         (ac-clang-send-cmdline-args ac-clang-completion-process)
-         (message "`ac-clang-cflags' should be a list of strings")))
+      (ac-clang-send-cmdline-args ac-clang-completion-process)
+    (message "`ac-clang-cflags' should be a list of strings")))
 
 (defun ac-clang-send-shutdown-command (proc)
   (if (eq (process-status proc) 'run)
-    (process-send-string proc "SHUTDOWN\n"))
+      (process-send-string proc "SHUTDOWN\n"))
   )
 
 
@@ -481,8 +500,12 @@ set new cflags for ac-clang from shell command output"
 ;;  Receive server responses (completion candidates) and fire auto-complete
 ;;
 (defun ac-clang-parse-completion-results (proc)
-  (with-current-buffer (process-buffer proc)
-    (ac-clang-parse-output ac-clang-saved-prefix)))
+  (let ((pass-in-ac-clang-output-temp-file-name ac-clang-output-temp-file-name))
+    (with-temp-buffer
+      (insert-file-contents pass-in-ac-clang-output-temp-file-name)
+      (delete-file pass-in-ac-clang-output-temp-file-name)
+      (ac-clang-parse-output ac-clang-saved-prefix))))
+
 
 (defun ac-clang-filter-output (proc string)
   (ac-clang-append-process-output-to-process-buffer proc string)
@@ -585,7 +608,7 @@ set new cflags for ac-clang from shell command output"
   (interactive)
   (if ac-clang-async-do-autocompletion-automatically
       (ac-clang-async-preemptive)
-      (self-insert-command 1)))
+    (self-insert-command 1)))
 
 
 
